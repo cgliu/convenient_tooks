@@ -25,6 +25,7 @@ def find_files(folder):
     if not folder:
         folder = "./"
 
+    # Use glob2 instead of glob to search files recursively. **/*.{} enable recursively search
     for type in types:
         files += glob2.glob(os.path.join(folder, "**/*.{}".format(type)))
 
@@ -38,9 +39,13 @@ def get_taken_date(photo_path):
     """
     with open(photo_path, 'rb') as fh:
         try:
+            # Use exifread to read meta data of the image file
+            # time.strptime parses the input string using the specified format
+            # the return is struct_time, which is a named tuple
             tags = exifread.process_file(fh);
             return time.strptime(tags['Image DateTime'].values,"%Y:%m:%d %H:%M:%S")
         except KeyError:
+            # Use time.gmtime to convert a timestamp to struct_time
             return time.gmtime(os.path.getmtime(photo_path))
         
 def copy_photo(dest_root, photo_path):
@@ -69,6 +74,7 @@ def main(args):
     else:
         dest_root = args.dest
 
+    # Use qtdm to print a progress bar. Use qtdm.write to output extra status information
     for photo_path in tqdm.tqdm(photos):
         dest = copy_photo(dest_root,photo_path)
         tqdm.tqdm.write("copy {} to {}".format(photo_path, dest))
