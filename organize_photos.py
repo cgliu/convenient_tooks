@@ -1,47 +1,78 @@
-import glob
-import time
-import datetime
-import os, shutil
-import sys
-import argparse
+#!/usr/bin/env python
 
+import argparse
+import datetime
+import exifread
+import glob2
+import os
+import shutil
+import sys
+import time
+import tqdm
 
 def assure_path_exists(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def find_files(source):
-    types = ['jpg', 'm2ts', 'JPG', 'MTS', 'png']
+def find_files(folder):
+    """ Find all image and video files under the folder folder 
+
+    :param folder: folder to search
+    :return: a list of video and images files
+    """
+    types = ['jpg', 'm2ts', 'JPG', 'MTS', 'png', 'm4v', 'mp4']
     files = []
-    if not source:
-        source = "./"
+    if not folder:
+        folder = "./"
+
     for type in types:
-        files += glob.glob(os.path.join(source, "*." + type))
+        files += glob2.glob(os.path.join(folder, "**/*.{}".format(type)))
 
     return files
 
+def get_taken_date(photo_path):
+    """ Get the photo taken time 
+    
+    :param photo_path: the path
+    :return: truct_time 
+    """
+    with open(photo_path, 'rb') as fh:
+        try:
+            tags = exifread.process_file(fh);
+            return time.strptime(tags['Image DateTime'].values,"%Y:%m:%d %H:%M:%S")
+        except KeyError:
+            return time.gmtime(os.path.getmtime(photo_path))
+        
+def copy_photo(dest_root, photo_path):
+    """ Copy a single file to year/month folder 
+    :param dest_root: the root folder where you want to store the results
+    :param photo_path: the path to the photo to be organized
+    
+    :return: the path to the result
+    """
+    imageDate = get_taken_date(photo_path)
+    year = imageDate.tm_year
+    month = imageDate.tm_mon
+    parent = os.path.join(dest_root, str(year))
+    child   = os.path.join(parent, str(month))
+    assure_path_exists(child)
+    
+    file = os.path.basename(photo_path)
+    dest = os.path.join(child, file)
+    shutil.copyfile(photo_path, dest)
+    return dest
 
 def main(args):
     photos = find_files(args.source)
     if not args.dest:
-        root = os.getcwd()
+        dest_root = os.getcwd()
     else:
-        root = args.dest
+        dest_root = args.dest
 
-    for photo in photos:
-        t = os.path.getmtime(photo)
-        date = datetime.datetime.fromtimestamp(t)
-        parent = os.path.join(root, str(date.year))
-        child   = os.path.join(parent, str(date.month))
-
-        assure_path_exists(child)
-
-        file = os.path.basename(photo)
-        dest = os.path.join(child, file)
-        print "Copy " + photo + " to " + dest
-        shutil.copyfile(photo, dest)
-
-
+    for photo_path in tqdm.tqdm(photos):
+        dest = copy_photo(dest_root,photo_path)
+        tqdm.tqdm.write("copy {} to {}".format(photo_path, dest))
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="organize_photos.py", usage="%(prog)s Organize your photos (jpg, m2ts, mts, png) by copying them to monthly folders.")
     parser.add_argument('source',
